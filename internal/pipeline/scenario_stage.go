@@ -9,10 +9,10 @@ import (
 )
 
 type scenarioStage struct {
-	generator *scenario.Generator
+	generator scenario.BatchGenerator
 }
 
-func NewScenarioStage(generator *scenario.Generator) BatchStage {
+func NewScenarioStage(generator scenario.BatchGenerator) BatchStage {
 	return scenarioStage{generator: generator}
 }
 

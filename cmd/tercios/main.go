@@ -34,7 +34,8 @@ func main() {
 		errorRate              float64
 		serviceName            string
 		spanName               string
-		scenarioFile           string
+		scenarioFiles          scenario.FileFlags
+		scenarioStrategy       string
 		chaosPoliciesFile      string
 		chaosSeed              int64
 		dryRun                 bool
@@ -56,7 +57,9 @@ func main() {
 	flag.Float64Var(&errorRate, "error-rate", defaults.Generator.ErrorRate, "probability (0..1) of spans marked as error")
 	flag.StringVar(&serviceName, "service-name", defaults.Generator.ServiceName, "service.name attribute for spans")
 	flag.StringVar(&spanName, "span-name", defaults.Generator.SpanName, "span name to emit")
-	flag.StringVar(&scenarioFile, "scenario-file", "", "path to scenario JSON file")
+	flag.Var(&scenarioFiles, "scenario-file", "path to scenario JSON file; repeatable")
+	flag.Var(&scenarioFiles, "s", "path to scenario JSON file (shorthand); repeatable")
+	flag.StringVar(&scenarioStrategy, "scenario-strategy", string(scenario.SelectionStrategyRoundRobin), "scenario selection strategy when multiple scenarios: round-robin or random")
 	flag.StringVar(&chaosPoliciesFile, "chaos-policies-file", "", "path to chaos policies JSON file")
 	flag.Int64Var(&chaosSeed, "chaos-seed", 0, "override chaos policy seed (0 uses file/default)")
 	flag.BoolVar(&dryRun, "dry-run", false, "generate traces without exporting to OTLP")
@@ -120,16 +123,16 @@ func main() {
 
 	runner := pipeline.NewConcurrencyRunner(cfg.Concurrency.Exporters, cfg.Requests.PerExporter)
 	stages := make([]pipeline.BatchStage, 0, 2)
-	if scenarioFile != "" {
-		scenarioCfg, err := scenario.LoadFromJSON(scenarioFile)
+	files := scenarioFiles.Values()
+	if len(files) > 0 {
+		strategy, err := scenario.ParseSelectionStrategy(scenarioStrategy)
 		if err != nil {
-			log.Fatalf("invalid scenario file: %v", err)
+			log.Fatalf("invalid scenario strategy: %v", err)
 		}
-		definition, err := scenarioCfg.Build()
+		scenarioGenerator, err := scenario.NewBatchGeneratorFromFiles(files, strategy)
 		if err != nil {
-			log.Fatalf("invalid scenario definition: %v", err)
+			log.Fatalf("invalid scenario setup: %v", err)
 		}
-		scenarioGenerator := scenario.NewGenerator(definition)
 		stages = append(stages, pipeline.NewScenarioStage(scenarioGenerator))
 	} else {
 		generator := tracegen.Generator{

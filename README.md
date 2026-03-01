@@ -131,7 +131,8 @@ Policy JSON uses typed values:
 
 ## 4) Scenario mode (deterministic topology)
 
-Use `--scenario-file` to generate deterministic traces from a scenario definition.
+Use `--scenario-file` (or `-s`) to generate deterministic traces from a scenario definition.
+You can repeat the flag to mix multiple scenarios.
 
 Scenario example: `examples/scenario.json`
 
@@ -146,8 +147,22 @@ go run ./cmd/tercios \
 
 Notes:
 - Scenario mode replaces random topology generation.
+- You can provide multiple scenario files (repeat `--scenario-file` / `-s`).
+- `--scenario-strategy` controls selection when multiple scenarios are configured (`round-robin` or `random`).
 - Execution knobs still apply (`--exporters`, `--max-requests`, `--for`, `--request-interval`).
 - Chaos can be composed on top of scenarios with `--chaos-policies-file`.
+
+Example with two scenarios mixed in round-robin:
+
+```bash
+go run ./cmd/tercios \
+  -s ./examples/scenario.json \
+  -s ./examples/scenario-diff-cache-after-travel.json \
+  --scenario-strategy=round-robin \
+  --dry-run -o json \
+  --exporters=1 --max-requests=4 \
+  2>/dev/null
+```
 
 ---
 
@@ -194,7 +209,8 @@ go run ./cmd/tercios \
 - `--error-rate` probability (`0..1`) of generated error spans
 - `--service-name` base service name
 - `--span-name` base span name
-- `--scenario-file` path to deterministic scenario JSON
+- `--scenario-file`, `-s` path to deterministic scenario JSON (repeatable)
+- `--scenario-strategy` scenario selection strategy for multiple scenario files: `round-robin` or `random`
 - `--chaos-policies-file` path to chaos policy JSON
 - `--chaos-seed` override policy seed (`0` uses config/default)
 - `--dry-run` do not export, generate locally

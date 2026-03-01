@@ -13,6 +13,10 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
+type BatchGenerator interface {
+	GenerateBatch(ctx context.Context) ([]model.Span, error)
+}
+
 type Generator struct {
 	definition Definition
 	outgoing   map[string][]Edge
