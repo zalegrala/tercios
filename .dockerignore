@@ -1,0 +1,8 @@
+.git
+.github
+bin
+dist
+tercios
+*.log
+*.tmp
+.DS_Store
