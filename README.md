@@ -16,14 +16,6 @@ go install github.com/javiermolinar/tercios/cmd/tercios@latest
 
 Or download a prebuilt binary from [GitHub Releases](https://github.com/javiermolinar/tercios/releases/latest):
 
-- `tercios_linux_amd64.tar.gz`
-- `tercios_linux_arm64.tar.gz`
-- `tercios_darwin_amd64.tar.gz`
-- `tercios_darwin_arm64.tar.gz`
-- `tercios_windows_amd64.zip`
-
-Each release also includes a `checksums.txt` file.
-
 ## Build
 
 ```bash
