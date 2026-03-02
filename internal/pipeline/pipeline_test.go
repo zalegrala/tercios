@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -23,7 +24,7 @@ func TestPipelineRunsWithConcurrencyAndGenerator(t *testing.T) {
 	pipe := New(NewGeneratorStage(generator))
 	factory := testBatchExporterFactory{calls: &calls, spans: &spans}
 
-	if err := pipe.Run(context.Background(), runner, factory, 0, 0); err != nil {
+	if err := pipe.Run(context.Background(), runner, factory, 0, 0, 0); err != nil {
 		t.Fatalf("pipeline run error: %v", err)
 	}
 
@@ -82,6 +83,23 @@ func (e *countingBatchExporter) Shutdown(_ context.Context) error {
 	return nil
 }
 
+type blockingBatchExporterFactory struct{}
+
+func (blockingBatchExporterFactory) NewBatchExporter(_ context.Context) (model.BatchExporter, error) {
+	return blockingBatchExporter{}, nil
+}
+
+type blockingBatchExporter struct{}
+
+func (blockingBatchExporter) ExportBatch(ctx context.Context, _ model.Batch) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (blockingBatchExporter) Shutdown(_ context.Context) error {
+	return nil
+}
+
 func TestPipelineUsesModelBatchExporterWhenAvailable(t *testing.T) {
 	var calls int64
 	var spans int64
@@ -89,7 +107,7 @@ func TestPipelineUsesModelBatchExporterWhenAvailable(t *testing.T) {
 	pipe := New(fixedModelStage{})
 	factory := testBatchExporterFactory{calls: &calls, spans: &spans}
 
-	if err := pipe.Run(context.Background(), runner, factory, 0, 0); err != nil {
+	if err := pipe.Run(context.Background(), runner, factory, 0, 0, 0); err != nil {
 		t.Fatalf("pipeline run error: %v", err)
 	}
 
@@ -98,6 +116,20 @@ func TestPipelineUsesModelBatchExporterWhenAvailable(t *testing.T) {
 	}
 	if got := atomic.LoadInt64(&spans); got != 6 {
 		t.Fatalf("expected 6 exported spans, got %d", got)
+	}
+}
+
+func TestPipelineAppliesPerExportTimeout(t *testing.T) {
+	runner := NewConcurrencyRunner(1, 1)
+	pipe := New(fixedModelStage{})
+	factory := blockingBatchExporterFactory{}
+
+	err := pipe.Run(context.Background(), runner, factory, 0, 0, 10*time.Millisecond)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline exceeded, got %v", err)
+	}
+	if got := err.Error(); got == "" || !strings.Contains(got, "export worker=") {
+		t.Fatalf("expected exporter worker context in error, got %q", got)
 	}
 }
 
@@ -111,7 +143,7 @@ func TestPipelineUnlimitedRequestsStopsOnContextCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 
-	err := pipe.Run(ctx, runner, factory, 0, 0)
+	err := pipe.Run(ctx, runner, factory, 0, 0, 0)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected deadline exceeded, got %v", err)
 	}

@@ -63,9 +63,10 @@ type ConcurrencyConfig struct {
 }
 
 type RequestConfig struct {
-	PerExporter int      `json:"per_exporter"`
-	Interval    Duration `json:"interval"`
-	For         Duration `json:"for"`
+	PerExporter   int      `json:"per_exporter"`
+	Interval      Duration `json:"interval"`
+	For           Duration `json:"for"`
+	ExportTimeout Duration `json:"export_timeout"`
 }
 
 type GeneratorConfig struct {
@@ -96,9 +97,10 @@ func DefaultConfig() Config {
 			Exporters: 1,
 		},
 		Requests: RequestConfig{
-			PerExporter: 1,
-			Interval:    Duration{Duration: 0},
-			For:         Duration{Duration: 0},
+			PerExporter:   1,
+			Interval:      Duration{Duration: 0},
+			For:           Duration{Duration: 0},
+			ExportTimeout: Duration{Duration: 10 * time.Second},
 		},
 		Generator: GeneratorConfig{
 			Services:    3,
@@ -151,6 +153,9 @@ func (c Config) Validate() error {
 	}
 	if c.Requests.For.Duration < 0 {
 		return fmt.Errorf("request duration must be >= 0")
+	}
+	if c.Requests.ExportTimeout.Duration < 0 {
+		return fmt.Errorf("export timeout must be >= 0")
 	}
 	if c.Generator.Services <= 0 {
 		return fmt.Errorf("services must be > 0")

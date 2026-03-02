@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestValidateAllowsZeroMaxRequests(t *testing.T) {
 	cfg := DefaultConfig()
@@ -15,5 +18,13 @@ func TestValidateRejectsNegativeMaxRequests(t *testing.T) {
 	cfg.Requests.PerExporter = -1
 	if err := cfg.Validate(); err == nil {
 		t.Fatalf("expected error for negative max-requests")
+	}
+}
+
+func TestValidateRejectsNegativeExportTimeout(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Requests.ExportTimeout = Duration{Duration: -1 * time.Second}
+	if err := cfg.Validate(); err == nil {
+		t.Fatalf("expected error for negative export-timeout")
 	}
 }

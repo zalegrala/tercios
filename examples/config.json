@@ -13,7 +13,8 @@
   "requests": {
     "per_exporter": 10,
     "interval": "500ms",
-    "for": "0s"
+    "for": "0s",
+    "export_timeout": "10s"
   },
   "generator": {
     "services": 5,

@@ -49,7 +49,7 @@ type exportResult struct {
 	err      error
 }
 
-func (p *Pipeline) Run(ctx context.Context, runner *ConcurrencyRunner, factory ExporterFactory, requestInterval time.Duration, requestDuration time.Duration) error {
+func (p *Pipeline) Run(ctx context.Context, runner *ConcurrencyRunner, factory ExporterFactory, requestInterval time.Duration, requestDuration time.Duration, exportTimeout time.Duration) error {
 	if runner == nil {
 		return fmt.Errorf("concurrency runner not configured")
 	}
@@ -121,12 +121,13 @@ func (p *Pipeline) Run(ctx context.Context, runner *ConcurrencyRunner, factory E
 
 	var exporterWG sync.WaitGroup
 	for i := 0; i < workerCount; i++ {
+		workerID := i
 		exporterWG.Add(1)
 		group.Go(func() error {
 			defer exporterWG.Done()
 			exporter, err := factory.NewBatchExporter(groupCtx)
 			if err != nil {
-				return err
+				return fmt.Errorf("export worker=%d init: %w", workerID, err)
 			}
 			defer exporter.Shutdown(groupCtx)
 
@@ -138,8 +139,18 @@ func (p *Pipeline) Run(ctx context.Context, runner *ConcurrencyRunner, factory E
 					if !ok {
 						return nil
 					}
+
+					exportCtx := groupCtx
+					cancel := func() {}
+					if exportTimeout > 0 {
+						exportCtx, cancel = context.WithTimeout(groupCtx, exportTimeout)
+					}
 					start := time.Now()
-					err := exporter.ExportBatch(groupCtx, batch)
+					err := exporter.ExportBatch(exportCtx, batch)
+					cancel()
+					if err != nil {
+						err = fmt.Errorf("export worker=%d: %w", workerID, err)
+					}
 					result := exportResult{duration: time.Since(start), err: err}
 					select {
 					case <-groupCtx.Done():

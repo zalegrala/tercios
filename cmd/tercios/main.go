@@ -28,6 +28,7 @@ func main() {
 		requestsPerExporter    int
 		requestIntervalSeconds float64
 		requestForSeconds      float64
+		exportTimeoutSeconds   float64
 		services               int
 		maxDepth               int
 		maxSpans               int
@@ -51,6 +52,7 @@ func main() {
 	flag.IntVar(&requestsPerExporter, "max-requests", defaults.Requests.PerExporter, "requests per exporter (0 for no request limit)")
 	flag.Float64Var(&requestIntervalSeconds, "request-interval", defaults.Requests.Interval.Seconds(), "seconds between requests per exporter (0 for no delay)")
 	flag.Float64Var(&requestForSeconds, "for", defaults.Requests.For.Seconds(), "seconds to send traces per exporter (0 for no duration limit)")
+	flag.Float64Var(&exportTimeoutSeconds, "export-timeout", defaults.Requests.ExportTimeout.Seconds(), "seconds before each export attempt times out (0 disables per-export timeout)")
 	flag.IntVar(&services, "services", defaults.Generator.Services, "number of distinct service names to emit")
 	flag.IntVar(&maxDepth, "max-depth", defaults.Generator.MaxDepth, "maximum span depth per trace")
 	flag.IntVar(&maxSpans, "max-spans", defaults.Generator.MaxSpans, "maximum spans per trace")
@@ -85,6 +87,7 @@ func main() {
 
 	requestInterval := time.Duration(requestIntervalSeconds * float64(time.Second))
 	requestFor := time.Duration(requestForSeconds * float64(time.Second))
+	exportTimeout := time.Duration(exportTimeoutSeconds * float64(time.Second))
 	cfg := config.Config{
 		Endpoint: config.EndpointConfig{
 			Address:  endpoint,
@@ -96,9 +99,10 @@ func main() {
 			Exporters: exporters,
 		},
 		Requests: config.RequestConfig{
-			PerExporter: requestsPerExporter,
-			Interval:    config.Duration{Duration: requestInterval},
-			For:         config.Duration{Duration: requestFor},
+			PerExporter:   requestsPerExporter,
+			Interval:      config.Duration{Duration: requestInterval},
+			For:           config.Duration{Duration: requestFor},
+			ExportTimeout: config.Duration{Duration: exportTimeout},
 		},
 		Generator: config.GeneratorConfig{
 			Services:    services,
@@ -178,7 +182,7 @@ func main() {
 	}
 
 	pipe := pipeline.New(stages...)
-	err = pipe.Run(ctx, runner, factory, cfg.Requests.Interval.Duration, cfg.Requests.For.Duration)
+	err = pipe.Run(ctx, runner, factory, cfg.Requests.Interval.Duration, cfg.Requests.For.Duration, cfg.Requests.ExportTimeout.Duration)
 	summary := metrics.FormatSummary(pipe.Summary())
 	if dryRun && outputFormat == otlp.DryRunOutputJSON {
 		fmt.Fprintln(os.Stderr, summary)

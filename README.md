@@ -221,6 +221,7 @@ go run ./cmd/tercios \
 - `--max-requests` requests per exporter (`0` for no request limit)
 - `--request-interval` seconds between requests
 - `--for` duration in seconds
+- `--export-timeout` per-export timeout in seconds (`0` disables per-export timeout)
 - `--services` number of distinct services
 - `--max-depth` max span depth
 - `--max-spans` max spans per trace

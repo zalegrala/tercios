@@ -12,7 +12,9 @@ import (
 )
 
 type directBatchExporter struct {
-	client otlptrace.Client
+	client   otlptrace.Client
+	protocol config.Protocol
+	endpoint string
 }
 
 func (e *directBatchExporter) ExportBatch(ctx context.Context, batch model.Batch) error {
@@ -23,14 +25,20 @@ func (e *directBatchExporter) ExportBatch(ctx context.Context, batch model.Batch
 	if len(resourceSpans) == 0 {
 		return nil
 	}
-	return e.client.UploadTraces(ctx, resourceSpans)
+	if err := e.client.UploadTraces(ctx, resourceSpans); err != nil {
+		return fmt.Errorf("upload traces protocol=%s endpoint=%s: %w", e.protocol, e.endpoint, err)
+	}
+	return nil
 }
 
 func (e *directBatchExporter) Shutdown(ctx context.Context) error {
 	if e == nil || e.client == nil {
 		return nil
 	}
-	return e.client.Stop(ctx)
+	if err := e.client.Stop(ctx); err != nil {
+		return fmt.Errorf("stop otlp client protocol=%s endpoint=%s: %w", e.protocol, e.endpoint, err)
+	}
+	return nil
 }
 
 func (f ExporterFactory) NewBatchExporter(ctx context.Context) (model.BatchExporter, error) {
@@ -39,9 +47,9 @@ func (f ExporterFactory) NewBatchExporter(ctx context.Context) (model.BatchExpor
 		return nil, err
 	}
 	if err := client.Start(ctx); err != nil {
-		return nil, fmt.Errorf("start otlp client: %w", err)
+		return nil, fmt.Errorf("start otlp client protocol=%s endpoint=%s: %w", f.Protocol, f.Endpoint, err)
 	}
-	return &directBatchExporter{client: client}, nil
+	return &directBatchExporter{client: client, protocol: f.Protocol, endpoint: f.Endpoint}, nil
 }
 
 func (f ExporterFactory) newOTLPClient() (otlptrace.Client, error) {
