@@ -21,6 +21,14 @@ func TestValidateRejectsNegativeMaxRequests(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsNegativeRampUp(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Requests.RampUp = Duration{Duration: -1 * time.Second}
+	if err := cfg.Validate(); err == nil {
+		t.Fatalf("expected error for negative ramp-up")
+	}
+}
+
 func TestValidateRejectsNegativeExportTimeout(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Requests.ExportTimeout = Duration{Duration: -1 * time.Second}

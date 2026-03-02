@@ -24,7 +24,7 @@ func TestPipelineRunsWithConcurrencyAndGenerator(t *testing.T) {
 	pipe := New(NewGeneratorStage(generator))
 	factory := testBatchExporterFactory{calls: &calls, spans: &spans}
 
-	if err := pipe.Run(context.Background(), runner, factory, 0, 0, 0, 0); err != nil {
+	if err := pipe.Run(context.Background(), runner, factory, 0, 0, 0, 0, 0); err != nil {
 		t.Fatalf("pipeline run error: %v", err)
 	}
 
@@ -91,8 +91,12 @@ type countingBatchExporter struct {
 }
 
 func (e *countingBatchExporter) ExportBatch(_ context.Context, batch model.Batch) error {
-	atomic.AddInt64(e.calls, 1)
-	atomic.AddInt64(e.spans, int64(len(batch)))
+	if e.calls != nil {
+		atomic.AddInt64(e.calls, 1)
+	}
+	if e.spans != nil {
+		atomic.AddInt64(e.spans, int64(len(batch)))
+	}
 	return nil
 }
 
@@ -140,7 +144,7 @@ func TestPipelineUsesModelBatchExporterWhenAvailable(t *testing.T) {
 	pipe := New(fixedModelStage{})
 	factory := testBatchExporterFactory{calls: &calls, spans: &spans}
 
-	if err := pipe.Run(context.Background(), runner, factory, 0, 0, 0, 0); err != nil {
+	if err := pipe.Run(context.Background(), runner, factory, 0, 0, 0, 0, 0); err != nil {
 		t.Fatalf("pipeline run error: %v", err)
 	}
 
@@ -157,7 +161,7 @@ func TestPipelineCollectsTraceIDSamplesWhenEnabled(t *testing.T) {
 	pipe := New(traceSampleStage{})
 	factory := noopBatchExporterFactory{}
 
-	if err := pipe.Run(context.Background(), runner, factory, 0, 0, 0, 1); err != nil {
+	if err := pipe.Run(context.Background(), runner, factory, 0, 0, 0, 0, 1); err != nil {
 		t.Fatalf("pipeline run error: %v", err)
 	}
 
@@ -170,12 +174,26 @@ func TestPipelineCollectsTraceIDSamplesWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestPipelineRampUpDelaysLateWorkers(t *testing.T) {
+	var calls int64
+	runner := NewConcurrencyRunner(2, 1)
+	pipe := New(fixedModelStage{})
+	factory := testBatchExporterFactory{calls: &calls}
+
+	if err := pipe.Run(context.Background(), runner, factory, 0, 100*time.Millisecond, 200*time.Millisecond, 0, 0); err != nil {
+		t.Fatalf("pipeline run error: %v", err)
+	}
+	if got := atomic.LoadInt64(&calls); got != 1 {
+		t.Fatalf("expected only first worker to export before duration cutoff, got %d", got)
+	}
+}
+
 func TestPipelineAppliesPerExportTimeout(t *testing.T) {
 	runner := NewConcurrencyRunner(1, 1)
 	pipe := New(fixedModelStage{})
 	factory := blockingBatchExporterFactory{}
 
-	err := pipe.Run(context.Background(), runner, factory, 0, 0, 10*time.Millisecond, 0)
+	err := pipe.Run(context.Background(), runner, factory, 0, 0, 0, 10*time.Millisecond, 0)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected deadline exceeded, got %v", err)
 	}
@@ -194,7 +212,7 @@ func TestPipelineUnlimitedRequestsStopsOnContextCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 
-	err := pipe.Run(ctx, runner, factory, 0, 0, 0, 0)
+	err := pipe.Run(ctx, runner, factory, 0, 0, 0, 0, 0)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected deadline exceeded, got %v", err)
 	}

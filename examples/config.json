@@ -14,6 +14,7 @@
     "per_exporter": 10,
     "interval": "500ms",
     "for": "0s",
+    "ramp_up": "0s",
     "export_timeout": "10s"
   },
   "generator": {

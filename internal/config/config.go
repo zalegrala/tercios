@@ -66,6 +66,7 @@ type RequestConfig struct {
 	PerExporter   int      `json:"per_exporter"`
 	Interval      Duration `json:"interval"`
 	For           Duration `json:"for"`
+	RampUp        Duration `json:"ramp_up"`
 	ExportTimeout Duration `json:"export_timeout"`
 }
 
@@ -100,6 +101,7 @@ func DefaultConfig() Config {
 			PerExporter:   1,
 			Interval:      Duration{Duration: 0},
 			For:           Duration{Duration: 0},
+			RampUp:        Duration{Duration: 0},
 			ExportTimeout: Duration{Duration: 10 * time.Second},
 		},
 		Generator: GeneratorConfig{
@@ -153,6 +155,9 @@ func (c Config) Validate() error {
 	}
 	if c.Requests.For.Duration < 0 {
 		return fmt.Errorf("request duration must be >= 0")
+	}
+	if c.Requests.RampUp.Duration < 0 {
+		return fmt.Errorf("ramp-up must be >= 0")
 	}
 	if c.Requests.ExportTimeout.Duration < 0 {
 		return fmt.Errorf("export timeout must be >= 0")

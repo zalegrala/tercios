@@ -50,7 +50,7 @@ type exportResult struct {
 	traceIDs []string
 }
 
-func (p *Pipeline) Run(ctx context.Context, runner *ConcurrencyRunner, factory ExporterFactory, requestInterval time.Duration, requestDuration time.Duration, exportTimeout time.Duration, traceIDSampleLimit int) error {
+func (p *Pipeline) Run(ctx context.Context, runner *ConcurrencyRunner, factory ExporterFactory, requestInterval time.Duration, requestDuration time.Duration, rampUpDuration time.Duration, exportTimeout time.Duration, traceIDSampleLimit int) error {
 	if runner == nil {
 		return fmt.Errorf("concurrency runner not configured")
 	}
@@ -70,17 +70,28 @@ func (p *Pipeline) Run(ctx context.Context, runner *ConcurrencyRunner, factory E
 
 	group, groupCtx := errgroup.WithContext(ctx)
 
+	startTime := time.Now()
+
 	var producerWG sync.WaitGroup
 	for i := 0; i < workerCount; i++ {
+		workerID := i
 		producerWG.Add(1)
 		group.Go(func() error {
 			defer producerWG.Done()
-			start := time.Now()
+
+			if delay := rampUpDelay(workerID, workerCount, rampUpDuration); delay > 0 {
+				select {
+				case <-groupCtx.Done():
+					return groupCtx.Err()
+				case <-time.After(delay):
+				}
+			}
+
 			for request := 0; ; request++ {
 				if requestsPerWorker > 0 && request >= requestsPerWorker {
 					return nil
 				}
-				if requestDuration > 0 && time.Since(start) >= requestDuration {
+				if requestDuration > 0 && time.Since(startTime) >= requestDuration {
 					return nil
 				}
 				select {
@@ -198,6 +209,14 @@ func (p *Pipeline) Summary() metrics.Summary {
 		return metrics.Summary{}
 	}
 	return p.summary
+}
+
+func rampUpDelay(workerID int, workerCount int, rampUpDuration time.Duration) time.Duration {
+	if rampUpDuration <= 0 || workerCount <= 1 || workerID <= 0 {
+		return 0
+	}
+	fraction := float64(workerID) / float64(workerCount-1)
+	return time.Duration(float64(rampUpDuration) * fraction)
 }
 
 func sampleTraceIDs(batch model.Batch, limit int) []string {

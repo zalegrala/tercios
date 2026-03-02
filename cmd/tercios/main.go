@@ -28,6 +28,7 @@ func main() {
 		requestsPerExporter    int
 		requestIntervalSeconds float64
 		requestForSeconds      float64
+		rampUpSeconds          float64
 		exportTimeoutSeconds   float64
 		services               int
 		maxDepth               int
@@ -54,6 +55,7 @@ func main() {
 	flag.IntVar(&requestsPerExporter, "max-requests", defaults.Requests.PerExporter, "requests per exporter (0 for no request limit)")
 	flag.Float64Var(&requestIntervalSeconds, "request-interval", defaults.Requests.Interval.Seconds(), "seconds between requests per exporter (0 for no delay)")
 	flag.Float64Var(&requestForSeconds, "for", defaults.Requests.For.Seconds(), "seconds to send traces per exporter (0 for no duration limit)")
+	flag.Float64Var(&rampUpSeconds, "ramp-up", defaults.Requests.RampUp.Seconds(), "seconds to linearly ramp exporter workers from 0 to max concurrency")
 	flag.Float64Var(&exportTimeoutSeconds, "export-timeout", defaults.Requests.ExportTimeout.Seconds(), "seconds before each export attempt times out (0 disables per-export timeout)")
 	flag.IntVar(&services, "services", defaults.Generator.Services, "number of distinct service names to emit")
 	flag.IntVar(&maxDepth, "max-depth", defaults.Generator.MaxDepth, "maximum span depth per trace")
@@ -91,6 +93,7 @@ func main() {
 
 	requestInterval := time.Duration(requestIntervalSeconds * float64(time.Second))
 	requestFor := time.Duration(requestForSeconds * float64(time.Second))
+	rampUp := time.Duration(rampUpSeconds * float64(time.Second))
 	exportTimeout := time.Duration(exportTimeoutSeconds * float64(time.Second))
 	cfg := config.Config{
 		Endpoint: config.EndpointConfig{
@@ -106,6 +109,7 @@ func main() {
 			PerExporter:   requestsPerExporter,
 			Interval:      config.Duration{Duration: requestInterval},
 			For:           config.Duration{Duration: requestFor},
+			RampUp:        config.Duration{Duration: rampUp},
 			ExportTimeout: config.Duration{Duration: exportTimeout},
 		},
 		Generator: config.GeneratorConfig{
@@ -202,7 +206,7 @@ func main() {
 	if summaryTraceIDs {
 		traceIDSampleLimit = summaryTraceIDsLimit
 	}
-	err = pipe.Run(ctx, runner, factory, cfg.Requests.Interval.Duration, cfg.Requests.For.Duration, cfg.Requests.ExportTimeout.Duration, traceIDSampleLimit)
+	err = pipe.Run(ctx, runner, factory, cfg.Requests.Interval.Duration, cfg.Requests.For.Duration, cfg.Requests.RampUp.Duration, cfg.Requests.ExportTimeout.Duration, traceIDSampleLimit)
 	summary := metrics.FormatSummary(pipe.Summary())
 	if dryRun && outputFormat == otlp.DryRunOutputJSON {
 		fmt.Fprintln(os.Stderr, summary)

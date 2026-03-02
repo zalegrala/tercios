@@ -138,6 +138,7 @@ Key options for stress tests:
 - `--max-requests`: total work per exporter
 - `--request-interval`: pacing (`0` = max speed)
 - `--for`: duration-based runs
+- `--ramp-up`: linearly ramp exporter workers over time (for gentler load warm-up)
 - `--header`: auth/custom headers
 
 Before any non-dry-run load generation, Tercios runs an automatic exporter preflight check (a small connectivity probe) and exits early if it cannot reach the collector. This probe performs an empty OTLP export request (no spans).
@@ -150,6 +151,7 @@ go run ./cmd/tercios \
   --exporters=20 \
   --max-requests=0 \
   --for=60 \
+  --ramp-up=30 \
   --request-interval=0
 ```
 
@@ -283,6 +285,7 @@ go run ./cmd/tercios \
 - `--max-requests` requests per exporter (`0` for no request limit)
 - `--request-interval` seconds between requests
 - `--for` duration in seconds
+- `--ramp-up` ramp-up duration in seconds (linearly ramps exporter workers)
 - `--export-timeout` per-export timeout in seconds (`0` disables per-export timeout)
 - `--services` number of distinct services
 - `--max-depth` max span depth
