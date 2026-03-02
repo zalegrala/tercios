@@ -80,6 +80,8 @@ Key options for stress tests:
 - `--for`: duration-based runs
 - `--header`: auth/custom headers
 
+Before any non-dry-run load generation, Tercios runs an automatic exporter preflight check (a small connectivity probe) and exits early if it cannot reach the collector. This probe performs an empty OTLP export request (no spans).
+
 Duration-based run example:
 
 ```bash

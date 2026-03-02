@@ -133,12 +133,18 @@ func main() {
 		dryRunFactory := otlp.NewDryRunExporterFactory(outputFormat, os.Stdout)
 		factory = dryRunFactory
 	} else {
-		factory = otlp.ExporterFactory{
+		otlpFactory := otlp.ExporterFactory{
 			Protocol: cfg.Endpoint.Protocol,
 			Endpoint: cfg.Endpoint.Address,
 			Insecure: cfg.Endpoint.Insecure,
 			Headers:  cfg.Endpoint.Headers,
 		}
+		factory = otlpFactory
+		fmt.Fprintln(os.Stderr, "Running exporter preflight check...")
+		if err := otlp.RunPreflight(ctx, otlpFactory, cfg.Requests.ExportTimeout.Duration); err != nil {
+			log.Fatalf("preflight failed: %v", err)
+		}
+		fmt.Fprintln(os.Stderr, "Preflight check passed")
 	}
 
 	runner := pipeline.NewConcurrencyRunner(cfg.Concurrency.Exporters, cfg.Requests.PerExporter)
