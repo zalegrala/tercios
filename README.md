@@ -44,6 +44,24 @@ Build with buildx:
 make docker-buildx
 ```
 
+## How Tercios works
+
+Tercios is a composable pipeline with three main pieces:
+
+1. **Generator (load testing)**
+   - Default mode when you do not pass `--scenario-file`.
+   - Produces random traces to generate sustained load against your collector/backend.
+
+2. **Scenarios (deterministic traces)**
+   - Enabled with `--scenario-file` (repeatable).
+   - Replays deterministic service graphs so each run is predictable and comparable.
+
+3. **Chaos (optional mutations)**
+   - Enabled with `--chaos-policies-file`.
+   - Mutates generated/scenario traces (status, attributes, latency, etc.) to test resilience and analysis behavior.
+
+In short: **generator or scenario source → optional chaos → export**.
+
 ## Build
 
 ```bash
