@@ -2,6 +2,9 @@
 
 Tercios is a Swiss-army-knife CLI tool for generating OTLP traces to test collectors and tracing pipelines. It can be used to stress-test your tracing backend, generate complex scenarios, and introduce chaos.
 
+<img width="796" height="960" alt="capitan-al-frente-de-su-compania-en-un-tercio" src="https://github.com/user-attachments/assets/de5e2cf7-9652-4ecb-b451-343d45a4cfea" />
+
+
 ## Build
 
 ```bash
