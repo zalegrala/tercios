@@ -38,6 +38,7 @@ func main() {
 		spanName               string
 		scenarioFiles          scenario.FileFlags
 		scenarioStrategy       string
+		scenarioRunSeed        int64
 		chaosPoliciesFile      string
 		chaosSeed              int64
 		dryRun                 bool
@@ -66,6 +67,7 @@ func main() {
 	flag.Var(&scenarioFiles, "scenario-file", "path to scenario JSON file; repeatable")
 	flag.Var(&scenarioFiles, "s", "path to scenario JSON file (shorthand); repeatable")
 	flag.StringVar(&scenarioStrategy, "scenario-strategy", string(scenario.SelectionStrategyRoundRobin), "scenario selection strategy when multiple scenarios: round-robin or random")
+	flag.Int64Var(&scenarioRunSeed, "scenario-run-seed", 0, "seed namespace for scenario trace/span IDs (0 = auto-random per process)")
 	flag.StringVar(&chaosPoliciesFile, "chaos-policies-file", "", "path to chaos policies JSON file")
 	flag.Int64Var(&chaosSeed, "chaos-seed", 0, "override chaos policy seed (0 uses file/default)")
 	flag.BoolVar(&dryRun, "dry-run", false, "generate traces without exporting to OTLP")
@@ -169,7 +171,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("invalid scenario strategy: %v", err)
 		}
-		scenarioGenerator, err := scenario.NewBatchGeneratorFromFiles(files, strategy)
+		scenarioGenerator, err := scenario.NewBatchGeneratorFromFilesWithRunSeed(files, strategy, scenarioRunSeed)
 		if err != nil {
 			log.Fatalf("invalid scenario setup: %v", err)
 		}

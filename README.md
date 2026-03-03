@@ -52,9 +52,9 @@ Tercios is a composable pipeline with three main pieces:
    - Default mode when you do not pass `--scenario-file`.
    - Produces random traces to generate sustained load against your collector/backend.
 
-2. **Scenarios (deterministic traces)**
+2. **Scenarios (deterministic topology)**
    - Enabled with `--scenario-file` (repeatable).
-   - Replays deterministic service graphs so each run is predictable and comparable.
+   - Replays deterministic service graphs while namespacing trace/span IDs per process by default.
 
 3. **Chaos (optional mutations)**
    - Enabled with `--chaos-policies-file`.
@@ -231,6 +231,7 @@ Notes:
 - Scenario mode replaces random topology generation.
 - You can provide multiple scenario files (repeat `--scenario-file` / `-s`).
 - `--scenario-strategy` controls selection when multiple scenarios are configured (`round-robin` or `random`).
+- `--scenario-run-seed` controls trace/span ID namespacing (`0` = auto-random per process, non-zero = reproducible IDs across runs).
 - Execution knobs still apply (`--exporters`, `--max-requests`, `--for`, `--request-interval`).
 - Chaos can be composed on top of scenarios with `--chaos-policies-file`.
 
@@ -295,6 +296,7 @@ go run ./cmd/tercios \
 - `--span-name` base span name
 - `--scenario-file`, `-s` path to deterministic scenario JSON (repeatable)
 - `--scenario-strategy` scenario selection strategy for multiple scenario files: `round-robin` or `random`
+- `--scenario-run-seed` trace/span ID namespace for scenario mode (`0` auto-random per process)
 - `--chaos-policies-file` path to chaos policy JSON
 - `--chaos-seed` override policy seed (`0` uses config/default)
 - `--dry-run` do not export, generate locally

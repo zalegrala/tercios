@@ -68,6 +68,66 @@ func TestNewBatchGeneratorFromFilesRejectsEmpty(t *testing.T) {
 	}
 }
 
+func TestNewBatchGeneratorFromFilesWithRunSeedNamespacesRepeatedScenarios(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "scenario.json")
+	if err := os.WriteFile(path, []byte(minimalScenarioJSON("same", 41, "root")), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	generator, err := NewBatchGeneratorFromFilesWithRunSeed([]string{path, path}, SelectionStrategyRoundRobin, 123)
+	if err != nil {
+		t.Fatalf("NewBatchGeneratorFromFilesWithRunSeed() error = %v", err)
+	}
+
+	first, err := generator.GenerateBatch(context.Background())
+	if err != nil {
+		t.Fatalf("first GenerateBatch() error = %v", err)
+	}
+	second, err := generator.GenerateBatch(context.Background())
+	if err != nil {
+		t.Fatalf("second GenerateBatch() error = %v", err)
+	}
+	if len(first) == 0 || len(second) == 0 {
+		t.Fatalf("expected non-empty batches")
+	}
+	if first[0].TraceID == second[0].TraceID {
+		t.Fatalf("expected repeated scenarios to use different trace ID namespace, got %s", first[0].TraceID)
+	}
+}
+
+func TestNewBatchGeneratorFromFilesWithRunSeedIsReproducibleWhenFixed(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "scenario.json")
+	if err := os.WriteFile(path, []byte(minimalScenarioJSON("single", 52, "root")), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	g1, err := NewBatchGeneratorFromFilesWithRunSeed([]string{path}, SelectionStrategyRoundRobin, 77)
+	if err != nil {
+		t.Fatalf("g1 NewBatchGeneratorFromFilesWithRunSeed() error = %v", err)
+	}
+	g2, err := NewBatchGeneratorFromFilesWithRunSeed([]string{path}, SelectionStrategyRoundRobin, 77)
+	if err != nil {
+		t.Fatalf("g2 NewBatchGeneratorFromFilesWithRunSeed() error = %v", err)
+	}
+
+	b1, err := g1.GenerateBatch(context.Background())
+	if err != nil {
+		t.Fatalf("g1 GenerateBatch() error = %v", err)
+	}
+	b2, err := g2.GenerateBatch(context.Background())
+	if err != nil {
+		t.Fatalf("g2 GenerateBatch() error = %v", err)
+	}
+	if len(b1) == 0 || len(b2) == 0 {
+		t.Fatalf("expected non-empty batches")
+	}
+	if b1[0].TraceID != b2[0].TraceID {
+		t.Fatalf("expected fixed run seed to be reproducible, got %s vs %s", b1[0].TraceID, b2[0].TraceID)
+	}
+}
+
 func minimalScenarioJSON(name string, seed int64, rootSpanName string) string {
 	return `{
   "name": "` + name + `",
