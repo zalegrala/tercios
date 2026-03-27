@@ -2,8 +2,11 @@ package otlp
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -19,6 +22,26 @@ type ExporterFactory struct {
 	Insecure          bool
 	Headers           map[string]string
 	SlowResponseDelay time.Duration
+	TLSCACert         string
+	TLSSkipVerify     bool
+}
+
+func (f ExporterFactory) tlsConfig() (*tls.Config, error) {
+	if f.TLSSkipVerify {
+		return &tls.Config{InsecureSkipVerify: true}, nil //nolint:gosec
+	}
+	if f.TLSCACert != "" {
+		pem, err := os.ReadFile(f.TLSCACert)
+		if err != nil {
+			return nil, fmt.Errorf("read TLS CA cert %q: %w", f.TLSCACert, err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("no valid PEM certificates found in %q", f.TLSCACert)
+		}
+		return &tls.Config{RootCAs: pool}, nil
+	}
+	return nil, nil
 }
 
 func (f ExporterFactory) NewExporter(ctx context.Context) (trace.SpanExporter, error) {
