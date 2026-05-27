@@ -44,6 +44,24 @@ type Span struct {
 
 type Batch []Span
 
+// ByteSize returns an approximate byte count for the batch, summing attribute
+// key and value string lengths. String-valued attributes (e.g. gen.padding)
+// contribute their exact byte count; other types contribute their string
+// representation length. This is a model-level estimate, not the wire size.
+func (b Batch) ByteSize() int {
+	n := 0
+	for _, span := range b {
+		n += len(span.Name)
+		for k, v := range span.Attributes {
+			n += len(k) + len(v.AsString())
+		}
+		for k, v := range span.ResourceAttributes {
+			n += len(k) + len(v.AsString())
+		}
+	}
+	return n
+}
+
 func AttributesToMap(attributes []attribute.KeyValue) map[string]attribute.Value {
 	if len(attributes) == 0 {
 		return map[string]attribute.Value{}

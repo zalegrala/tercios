@@ -50,6 +50,7 @@ type exportResult struct {
 	err      error
 	traceIDs []string
 	spans    int
+	bytes    int
 }
 
 func (p *Pipeline) Run(ctx context.Context, runner *ConcurrencyRunner, factory ExporterFactory, requestInterval time.Duration, requestDuration time.Duration, rampUpDuration time.Duration, exportTimeout time.Duration, traceIDSampleLimit int) error {
@@ -168,13 +169,14 @@ func (p *Pipeline) RunWithProgress(ctx context.Context, runner *ConcurrencyRunne
 						exportCtx, cancel = context.WithTimeout(groupCtx, exportTimeout)
 					}
 					traceIDs := sampleTraceIDs(batch, traceIDSampleLimit)
+					batchBytes := batch.ByteSize()
 					start := time.Now()
 					err := exporter.ExportBatch(exportCtx, batch)
 					cancel()
 					if err != nil {
 						err = fmt.Errorf("export worker=%d: %w", workerID, err)
 					}
-					result := exportResult{duration: time.Since(start), err: err, traceIDs: traceIDs, spans: len(batch)}
+					result := exportResult{duration: time.Since(start), err: err, traceIDs: traceIDs, spans: len(batch), bytes: batchBytes}
 					select {
 					case <-groupCtx.Done():
 						return groupCtx.Err()
@@ -215,7 +217,7 @@ func (p *Pipeline) RunWithProgress(ctx context.Context, runner *ConcurrencyRunne
 					close(finalSummary)
 					return nil
 				}
-				stats.RecordBatchWithTraceIDs(result.duration, result.err, result.traceIDs, result.spans)
+				stats.RecordBatchWithTraceIDs(result.duration, result.err, result.traceIDs, result.spans, result.bytes)
 			case <-tickCh:
 				_, _ = fmt.Fprintln(progressWriter, metrics.FormatProgress(stats.SummaryWithElapsed(time.Since(startTime)), expectedTotal))
 			}

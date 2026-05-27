@@ -97,8 +97,8 @@ func TestFormatSummaryPrintsTraceIDSamples(t *testing.T) {
 
 func TestStatsSummaryWithElapsedIncludesSenderMetrics(t *testing.T) {
 	stats := NewStats()
-	stats.RecordBatchWithTraceIDs(5*time.Millisecond, nil, nil, 10)
-	stats.RecordBatchWithTraceIDs(7*time.Millisecond, errors.New("boom"), nil, 5)
+	stats.RecordBatchWithTraceIDs(5*time.Millisecond, nil, nil, 10, 0)
+	stats.RecordBatchWithTraceIDs(7*time.Millisecond, errors.New("boom"), nil, 5, 0)
 
 	summary := stats.SummaryWithElapsed(2 * time.Second)
 	if summary.Total != 2 {
