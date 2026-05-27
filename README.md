@@ -214,6 +214,7 @@ tercios --endpoint=localhost:4317 \
 - `--request-interval` seconds between requests
 - `--for` duration in seconds
 - `--ramp-up` ramp-up duration in seconds (linearly ramps exporter workers)
+- `--traces-per-batch` number of traces bundled into each OTLP export call (default `1`; must be ≥ 1)
 - `--span-attribute-padding` bytes of pseudo-random padding added as a `gen.padding` string attribute on every span before export (`0` disables)
 - `--export-timeout` per-export timeout in seconds, applied to both the pipeline context and the OTLP SDK client (`0` disables the pipeline timeout and leaves the SDK default of 10s in place; raise this when running with many exporters so burst phases are not aborted by the SDK). In streaming mode the pipeline-level wrapper is bypassed and this value applies per inner OTLP request instead.
 - `--streaming` pace each trace's spans by `EndTime` before sending to OTLP (default off). Required for long-running traces (e.g. >10s) against backends that reject future timestamps. In streaming mode, `--exporters` becomes the in-flight cap (one paced trace per exporter worker) and `add_latency` chaos is honored by the pacer.

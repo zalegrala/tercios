@@ -44,6 +44,7 @@ func main() {
 		headers                  config.HeaderFlags
 		slowResponseDelaySeconds float64
 		spanAttributePadding     int
+		tracesPerBatch           int
 	)
 
 	flag.Usage = usage
@@ -74,6 +75,7 @@ func main() {
 	flag.Var(&headers, "header", "header in Key=Value or Key: Value format; repeatable")
 	flag.Float64Var(&slowResponseDelaySeconds, "slow-response-delay", 0, "seconds to delay reading each HTTP response body, simulating a slow client (HTTP only, 0 disables)")
 	flag.IntVar(&spanAttributePadding, "span-attribute-padding", 0, "bytes of pseudo-random padding added as a gen.padding string attribute on every span before export (0 disables)")
+	flag.IntVar(&tracesPerBatch, "traces-per-batch", 1, "number of traces to bundle into each OTLP export call (must be >= 1)")
 	flag.Parse()
 	if flag.NFlag() == 0 {
 		usage()
@@ -135,6 +137,9 @@ func main() {
 	if spanAttributePadding < 0 {
 		log.Fatalf("invalid load config: --span-attribute-padding must be >= 0")
 	}
+	if tracesPerBatch < 1 {
+		log.Fatalf("invalid load config: --traces-per-batch must be >= 1")
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -194,13 +199,13 @@ func main() {
 		if err != nil {
 			log.Fatalf("invalid scenario setup: %v", err)
 		}
-		stages = append(stages, pipeline.NewScenarioStage(scenarioGenerator))
+		stages = append(stages, pipeline.NewScenarioStage(scenario.NewBatchMultiplier(scenarioGenerator, tracesPerBatch)))
 	} else {
 		defaultGenerator, err := scenario.DefaultGenerator(scenarioRunSeed)
 		if err != nil {
 			log.Fatalf("embedded scenario failed: %v", err)
 		}
-		stages = append(stages, pipeline.NewScenarioStage(defaultGenerator))
+		stages = append(stages, pipeline.NewScenarioStage(scenario.NewBatchMultiplier(defaultGenerator, tracesPerBatch)))
 	}
 	if chaosPoliciesFile != "" {
 		chaosCfg, err := chaos.LoadFromJSON(chaosPoliciesFile)
@@ -273,7 +278,7 @@ Connection:
 `)
 	printFlag(w, "endpoint", "protocol", "insecure", "header", "tls-ca-cert", "tls-skip-verify")
 	_, _ = fmt.Fprintf(w, "\nLoad:\n")
-	printFlag(w, "exporters", "max-requests", "request-interval", "for", "ramp-up", "export-timeout", "slow-response-delay", "span-attribute-padding")
+	printFlag(w, "exporters", "max-requests", "request-interval", "for", "ramp-up", "export-timeout", "slow-response-delay", "traces-per-batch", "span-attribute-padding")
 	_, _ = fmt.Fprintf(w, "\nScenarios:\n")
 	printFlag(w, "scenario-file", "scenario-strategy", "scenario-run-seed")
 	_, _ = fmt.Fprintf(w, "\nChaos:\n")

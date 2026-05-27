@@ -13,6 +13,11 @@ version numbers follow [Semantic Versioning](https://semver.org/).
   filter). Padding is applied as the last pipeline stage, after chaos.
   See [docs/payload-testing.md](docs/payload-testing.md).
 
+- **`--traces-per-batch`** CLI flag. Bundles N traces into each OTLP export call
+  (default 1). Use to simulate a high-rate client or abusive batch sender without
+  increasing concurrency. Composes with `--span-attribute-padding` to independently
+  control trace count and per-span size within a single request.
+
 ## [v0.7.0] — 2026-05-13
 
 This release adds the user-facing `--streaming` mode that v0.6.0's
