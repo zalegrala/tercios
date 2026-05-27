@@ -253,6 +253,61 @@ func TestStringSizeNormalized(t *testing.T) {
 	}
 }
 
+func TestRandomStringGeneratesCorrectLength(t *testing.T) {
+	size := 1000
+	tv := TypedValue{Type: ValueTypeString, Size: &size, Random: true}
+	if err := tv.Validate("test"); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	av, err := tv.ToAttributeValue()
+	if err != nil {
+		t.Fatalf("ToAttributeValue() error = %v", err)
+	}
+	if got := len(av.AsString()); got != size {
+		t.Fatalf("expected length %d, got %d", size, got)
+	}
+}
+
+func TestRandomStringIsPrintableASCII(t *testing.T) {
+	size := 500
+	tv := TypedValue{Type: ValueTypeString, Size: &size, Random: true}
+	av, _ := tv.ToAttributeValue()
+	for i, b := range []byte(av.AsString()) {
+		if b < 0x20 || b > 0x7e {
+			t.Fatalf("byte %d is not printable ASCII: 0x%02x", i, b)
+		}
+	}
+}
+
+func TestRandomStringValidationErrors(t *testing.T) {
+	zero := 0
+	cases := []struct {
+		name string
+		tv   TypedValue
+	}{
+		{"random without size", TypedValue{Type: ValueTypeString, Random: true}},
+		{"random with zero size", TypedValue{Type: ValueTypeString, Size: &zero, Random: true}},
+		{"random with value", TypedValue{Type: ValueTypeString, Size: func() *int { n := 100; return &n }(), Random: true, Value: "abc"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.tv.Validate("test"); err == nil {
+				t.Fatal("expected validation error, got nil")
+			}
+		})
+	}
+}
+
+func TestRandomStringDiffersAcrossCalls(t *testing.T) {
+	size := 100
+	tv := TypedValue{Type: ValueTypeString, Size: &size, Random: true}
+	av1, _ := tv.ToAttributeValue()
+	av2, _ := tv.ToAttributeValue()
+	if av1.AsString() == av2.AsString() {
+		t.Fatal("expected different random values across calls")
+	}
+}
+
 func TestArrayNormalized(t *testing.T) {
 	tv := TypedValue{Type: ValueTypeStringArray, Value: []any{"a", "b"}}
 	val, ok := tv.Normalized()

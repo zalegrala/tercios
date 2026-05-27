@@ -1,0 +1,37 @@
+{
+  "name": "large-payload-incompressible",
+  "seed": 42,
+  "services": {
+    "frontend":  {"resource": {"service.name": {"type": "string", "value": "frontend"}}},
+    "api":       {"resource": {"service.name": {"type": "string", "value": "api"}}},
+    "database":  {"resource": {"service.name": {"type": "string", "value": "database"}}}
+  },
+  "nodes": {
+    "frontend": {"service": "frontend", "span_name": "POST /ingest"},
+    "api":      {"service": "api",      "span_name": "handle_request"},
+    "database": {"service": "database", "span_name": "INSERT batch"}
+  },
+  "root": "frontend",
+  "edges": [
+    {
+      "from": "frontend",
+      "to": "api",
+      "kind": "client_server",
+      "repeat": 1,
+      "duration_ms": 50,
+      "span_attributes": {
+        "payload": {"type": "string", "size": 200000, "random": true}
+      }
+    },
+    {
+      "from": "api",
+      "to": "database",
+      "kind": "client_database",
+      "repeat": 1,
+      "duration_ms": 20,
+      "span_attributes": {
+        "payload": {"type": "string", "size": 200000, "random": true}
+      }
+    }
+  ]
+}

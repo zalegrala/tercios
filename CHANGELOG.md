@@ -7,16 +7,24 @@ version numbers follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **`--span-attribute-padding`** CLI flag. Inflates every span in each OTLP export call
-  with N bytes of pseudo-random printable-ASCII content as a `gen.padding` string
-  attribute. Use to validate per-request payload size limits (e.g. an Envoy buffer
-  filter). Padding is applied as the last pipeline stage, after chaos.
+- **`"random": true` on `string` typed values.** When combined with `size`, generates
+  pseudo-random printable-ASCII content instead of tiling a seed string. Produces
+  incompressible payloads for testing wire-level byte limits (e.g. an Envoy buffer
+  filter). Omitting `random` retains the tiled behavior, which compresses well and
+  is suitable for testing decompressed-size limits.
   See [docs/payload-testing.md](docs/payload-testing.md).
 
 - **`--traces-per-batch`** CLI flag. Bundles N traces into each OTLP export call
   (default 1). Use to simulate a high-rate client or abusive batch sender without
-  increasing concurrency. Composes with `--span-attribute-padding` to independently
+  increasing concurrency. Composes with large-attribute scenario files to independently
   control trace count and per-span size within a single request.
+
+- **Payload byte metrics** in summary output. Reports `Attempted payload`,
+  `Payload rate`, and `Avg payload/request` when any bytes are recorded.
+
+- **`examples/large_payload_incompressible.json`** and
+  **`examples/large_payload_compressible.json`** — ready-to-use scenarios for
+  write-path durability testing.
 
 ## [v0.7.0] — 2026-05-13
 

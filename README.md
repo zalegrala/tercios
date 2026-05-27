@@ -185,17 +185,17 @@ tercios --scenario-file=my-scenario.json \
 
 ## 5) Payload stress testing
 
-Send individual OTLP requests with inflated span attributes to validate per-request
-payload size limits (e.g. an Envoy buffer filter that rejects requests above 4 MB).
-See [docs/payload-testing.md](docs/payload-testing.md) for sizing guidance and
-composability details.
+Send large OTLP requests using scenario files with sized string attributes.
+Two shapes are available: incompressible (random) for testing wire-level byte limits,
+and compressible (tiled) for testing decompressed-size limits. See
+[docs/payload-testing.md](docs/payload-testing.md) for details and sizing guidance.
 
 ```bash
-# ~5 MB per request; expect HTTP 413 if a 4 MB ingest limit is active
+# ~1 MB per request (incompressible); expect HTTP 413 if a 4 MB ingest limit is active
 tercios --endpoint=localhost:4317 \
   --insecure \
-  --span-attribute-padding=250000 \
-  --exporters=1 \
+  --scenario-file=examples/large_payload_incompressible.json \
+  --traces-per-batch=5 \
   --max-requests=3
 ```
 
@@ -215,7 +215,6 @@ tercios --endpoint=localhost:4317 \
 - `--for` duration in seconds
 - `--ramp-up` ramp-up duration in seconds (linearly ramps exporter workers)
 - `--traces-per-batch` number of traces bundled into each OTLP export call (default `1`; must be ≥ 1)
-- `--span-attribute-padding` bytes of pseudo-random padding added as a `gen.padding` string attribute on every span before export (`0` disables)
 - `--export-timeout` per-export timeout in seconds, applied to both the pipeline context and the OTLP SDK client (`0` disables the pipeline timeout and leaves the SDK default of 10s in place; raise this when running with many exporters so burst phases are not aborted by the SDK). In streaming mode the pipeline-level wrapper is bypassed and this value applies per inner OTLP request instead.
 - `--streaming` pace each trace's spans by `EndTime` before sending to OTLP (default off). Required for long-running traces (e.g. >10s) against backends that reject future timestamps. In streaming mode, `--exporters` becomes the in-flight cap (one paced trace per exporter worker) and `add_latency` chaos is honored by the pacer.
 - `--scenario-file`, `-s` path to scenario JSON (repeatable; uses embedded default if omitted)

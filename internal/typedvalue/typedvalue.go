@@ -3,10 +3,13 @@ package typedvalue
 import (
 	_ "embed"
 	"fmt"
+	"math/rand/v2"
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 )
+
+var globalRand = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
 
 //go:embed seed.txt
 var blobSeed string
@@ -28,9 +31,10 @@ const (
 )
 
 type TypedValue struct {
-	Type  ValueType `json:"type"`
-	Value any       `json:"value"`
-	Size  *int      `json:"size,omitempty"`
+	Type   ValueType `json:"type"`
+	Value  any       `json:"value"`
+	Size   *int      `json:"size,omitempty"`
+	Random bool      `json:"random,omitempty"`
 }
 
 func (v TypedValue) Validate(field string) error {
@@ -40,6 +44,15 @@ func (v TypedValue) Validate(field string) error {
 	}
 	switch ValueType(typeName) {
 	case ValueTypeString:
+		if v.Random {
+			if v.Size == nil || *v.Size <= 0 {
+				return fmt.Errorf("%s: random requires size > 0", field)
+			}
+			if v.Value != nil {
+				return fmt.Errorf("%s: random and value are mutually exclusive", field)
+			}
+			return nil
+		}
 		if v.Size != nil {
 			if *v.Size <= 0 {
 				return fmt.Errorf("%s: size must be > 0", field)
@@ -115,6 +128,9 @@ func (v TypedValue) Validate(field string) error {
 func (v TypedValue) Normalized() (any, bool) {
 	switch ValueType(strings.ToLower(strings.TrimSpace(string(v.Type)))) {
 	case ValueTypeString:
+		if v.Random && v.Size != nil {
+			return generateRandomBlob(*v.Size), true
+		}
 		if v.Size != nil {
 			seed := blobSeed
 			if s, ok := v.Value.(string); ok && s != "" {
@@ -154,6 +170,9 @@ func (v TypedValue) ToAttributeValue() (attribute.Value, error) {
 	normalizedType := ValueType(strings.ToLower(strings.TrimSpace(string(v.Type))))
 	switch normalizedType {
 	case ValueTypeString:
+		if v.Random && v.Size != nil {
+			return attribute.StringValue(generateRandomBlob(*v.Size)), nil
+		}
 		if v.Size != nil {
 			seed := blobSeed
 			if s, ok := v.Value.(string); ok && s != "" {
@@ -275,6 +294,14 @@ func toBoolSlice(value any) ([]bool, error) {
 		out[i] = b
 	}
 	return out, nil
+}
+
+func generateRandomBlob(size int) string {
+	buf := make([]byte, size)
+	for i := range buf {
+		buf[i] = byte(globalRand.IntN(95)) + 0x20
+	}
+	return string(buf)
 }
 
 func generateBlob(seed string, size int) string {
