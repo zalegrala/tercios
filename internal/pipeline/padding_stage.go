@@ -27,7 +27,7 @@ func NewPaddingStage(size int, seed int64) BatchStage {
 	r := rand.New(rand.NewPCG(s, 0))
 	buf := make([]byte, size)
 	for i := range buf {
-		buf[i] = byte(r.Uint32())
+		buf[i] = byte(r.IntN(95)) + 0x20 // printable ASCII 0x20–0x7E
 	}
 	return &paddingStage{buffer: buf}
 }
