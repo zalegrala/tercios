@@ -1,0 +1,37 @@
+{
+  "name": "load-test-above-limit",
+  "seed": 42,
+  "services": {
+    "client": {"resource": {"service.name": {"type": "string", "value": "load-test-client"}}},
+    "api":    {"resource": {"service.name": {"type": "string", "value": "load-test-api"}}},
+    "db":     {"resource": {"service.name": {"type": "string", "value": "load-test-db"}}}
+  },
+  "nodes": {
+    "client": {"service": "client", "span_name": "write"},
+    "api":    {"service": "api",    "span_name": "handle_write"},
+    "db":     {"service": "db",     "span_name": "insert"}
+  },
+  "root": "client",
+  "edges": [
+    {
+      "from": "client",
+      "to": "api",
+      "kind": "client_server",
+      "repeat": 1,
+      "duration_ms": 50,
+      "span_attributes": {
+        "gen.payload": {"type": "string", "size": 1250000, "random": true}
+      }
+    },
+    {
+      "from": "api",
+      "to": "db",
+      "kind": "client_database",
+      "repeat": 1,
+      "duration_ms": 20,
+      "span_attributes": {
+        "gen.payload": {"type": "string", "size": 1250000, "random": true}
+      }
+    }
+  ]
+}
