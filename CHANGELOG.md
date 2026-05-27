@@ -3,6 +3,16 @@
 All notable changes are recorded here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **`--span-attribute-padding`** CLI flag. Inflates every span in each OTLP export call
+  with N bytes of pseudo-random printable-ASCII content as a `gen.padding` string
+  attribute. Use to validate per-request payload size limits (e.g. an Envoy buffer
+  filter). Padding is applied as the last pipeline stage, after chaos.
+  See [docs/payload-testing.md](docs/payload-testing.md).
+
 ## [v0.7.0] — 2026-05-13
 
 This release adds the user-facing `--streaming` mode that v0.6.0's
