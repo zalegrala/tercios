@@ -46,11 +46,18 @@ func (p *Pipeline) Process(ctx context.Context, spans []model.Span) ([]model.Spa
 }
 
 type exportResult struct {
-	duration time.Duration
-	err      error
-	traceIDs []string
-	spans    int
-	bytes    int
+	duration  time.Duration
+	err       error
+	traceIDs  []string
+	spans     int
+	bytes     int
+	wireBytes int
+}
+
+// wireByteTracker is optionally implemented by exporters that track compressed
+// wire bytes sent per call (e.g. via a gRPC stats handler).
+type wireByteTracker interface {
+	LastWireBytes() int
 }
 
 func (p *Pipeline) Run(ctx context.Context, runner *ConcurrencyRunner, factory ExporterFactory, requestInterval time.Duration, requestDuration time.Duration, rampUpDuration time.Duration, exportTimeout time.Duration, traceIDSampleLimit int) error {
@@ -173,10 +180,14 @@ func (p *Pipeline) RunWithProgress(ctx context.Context, runner *ConcurrencyRunne
 					start := time.Now()
 					err := exporter.ExportBatch(exportCtx, batch)
 					cancel()
+					wireBytes := 0
+					if wt, ok := exporter.(wireByteTracker); ok {
+						wireBytes = wt.LastWireBytes()
+					}
 					if err != nil {
 						err = fmt.Errorf("export worker=%d: %w", workerID, err)
 					}
-					result := exportResult{duration: time.Since(start), err: err, traceIDs: traceIDs, spans: len(batch), bytes: batchBytes}
+					result := exportResult{duration: time.Since(start), err: err, traceIDs: traceIDs, spans: len(batch), bytes: batchBytes, wireBytes: wireBytes}
 					select {
 					case <-groupCtx.Done():
 						return groupCtx.Err()
@@ -217,7 +228,7 @@ func (p *Pipeline) RunWithProgress(ctx context.Context, runner *ConcurrencyRunne
 					close(finalSummary)
 					return nil
 				}
-				stats.RecordBatchWithTraceIDs(result.duration, result.err, result.traceIDs, result.spans, result.bytes)
+				stats.RecordBatchWithTraceIDs(result.duration, result.err, result.traceIDs, result.spans, result.bytes, result.wireBytes)
 			case <-tickCh:
 				_, _ = fmt.Fprintln(progressWriter, metrics.FormatProgress(stats.SummaryWithElapsed(time.Since(startTime)), expectedTotal))
 			}

@@ -10,16 +10,20 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/encoding/gzip"
 )
 
 type directBatchExporter struct {
-	client   otlptrace.Client
-	protocol config.Protocol
-	endpoint string
+	client        otlptrace.Client
+	protocol      config.Protocol
+	endpoint      string
+	lastWireBytes int
 }
 
 func (e *directBatchExporter) ExportBatch(ctx context.Context, batch model.Batch) error {
+	e.lastWireBytes = 0
 	if len(batch) == 0 {
 		return nil
 	}
@@ -27,10 +31,17 @@ func (e *directBatchExporter) ExportBatch(ctx context.Context, batch model.Batch
 	if len(resourceSpans) == 0 {
 		return nil
 	}
-	if err := e.client.UploadTraces(ctx, resourceSpans); err != nil {
+	ctx, counter := withWireByteCounter(ctx)
+	err := e.client.UploadTraces(ctx, resourceSpans)
+	e.lastWireBytes = int(counter.Load())
+	if err != nil {
 		return fmt.Errorf("upload traces protocol=%s endpoint=%s: %w", e.protocol, e.endpoint, err)
 	}
 	return nil
+}
+
+func (e *directBatchExporter) LastWireBytes() int {
+	return e.lastWireBytes
 }
 
 func (e *directBatchExporter) Shutdown(ctx context.Context) error {
@@ -92,7 +103,10 @@ func (f ExporterFactory) newOTLPClient() (otlptrace.Client, error) {
 		return otlptracehttp.NewClient(options...), nil
 	}
 
-	options := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(endpoint)}
+	options := []otlptracegrpc.Option{
+		otlptracegrpc.WithEndpoint(endpoint),
+		otlptracegrpc.WithDialOption(grpc.WithStatsHandler(wireStatsHandler{})),
+	}
 	if f.Insecure {
 		options = append(options, otlptracegrpc.WithInsecure())
 	} else if tlsCfg, err := f.tlsConfig(); err != nil {
@@ -105,6 +119,9 @@ func (f ExporterFactory) newOTLPClient() (otlptrace.Client, error) {
 	}
 	if f.ExportTimeout > 0 {
 		options = append(options, otlptracegrpc.WithTimeout(f.ExportTimeout))
+	}
+	if f.GRPCCompression == "gzip" {
+		options = append(options, otlptracegrpc.WithCompressor(gzip.Name))
 	}
 	return otlptracegrpc.NewClient(options...), nil
 }

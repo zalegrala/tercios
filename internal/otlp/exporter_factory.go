@@ -29,6 +29,7 @@ type ExporterFactory struct {
 	SlowResponseDelay time.Duration
 	TLSCACert         string
 	TLSSkipVerify     bool
+	GRPCCompression   string
 	// ExportTimeout is forwarded to the OTLP SDK as the per-export timeout.
 	// A value of 0 leaves the SDK default in place (10s for both gRPC and HTTP).
 	ExportTimeout time.Duration
