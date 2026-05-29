@@ -1,0 +1,20 @@
+{
+  "name": "attack-wide-trace",
+  "seed": 42,
+  "services": {
+    "frontend": {"resource": {"service.name": {"type": "string", "value": "frontend"}}},
+    "worker":   {"resource": {"service.name": {"type": "string", "value": "worker"}}}
+  },
+  "nodes": {
+    "frontend": {"service": "frontend", "span_name": "fan-out"},
+    "worker":   {"service": "worker",   "span_name": "task"}
+  },
+  "root": "frontend",
+  "edges": [
+    {
+      "from": "frontend", "to": "worker",
+      "kind": "internal", "repeat": 500, "duration_ms": 5,
+      "attribute_count": 100
+    }
+  ]
+}

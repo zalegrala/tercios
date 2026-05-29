@@ -499,6 +499,221 @@ func TestPairEdgeLatencyChildrenFitInsideTarget(t *testing.T) {
 	}
 }
 
+func TestSyntheticAttributeCount(t *testing.T) {
+	cfg := Config{
+		Name: "attr-count",
+		Seed: 1,
+		Services: map[string]ServiceConfig{
+			"svc": {Resource: map[string]TypedValue{"service.name": {Type: ValueTypeString, Value: "svc"}}},
+		},
+		Nodes: map[string]NodeConfig{
+			"a": {Service: "svc", SpanName: "A"},
+			"b": {Service: "svc", SpanName: "B"},
+		},
+		Root: "a",
+		Edges: []EdgeConfig{
+			{From: "a", To: "b", Kind: EdgeKindInternal, Repeat: 1, DurationMs: 10, AttributeCount: 5},
+		},
+	}
+	def, err := cfg.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	spans, err := NewGenerator(def).GenerateBatch(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateBatch: %v", err)
+	}
+	// The internal edge emits one span. Find it (non-root).
+	var target *model.Span
+	for i := range spans {
+		if spans[i].ParentSpanID.IsValid() {
+			target = &spans[i]
+			break
+		}
+	}
+	if target == nil {
+		t.Fatalf("child span not found")
+	}
+	count := 0
+	for key := range target.Attributes {
+		if len(key) >= 8 && key[:8] == "gen.attr" {
+			count++
+		}
+	}
+	if count != 5 {
+		t.Fatalf("expected 5 synthetic attributes, got %d (attrs: %v)", count, target.Attributes)
+	}
+}
+
+func TestSyntheticEventCount(t *testing.T) {
+	cfg := Config{
+		Name: "event-count",
+		Seed: 1,
+		Services: map[string]ServiceConfig{
+			"svc": {Resource: map[string]TypedValue{"service.name": {Type: ValueTypeString, Value: "svc"}}},
+		},
+		Nodes: map[string]NodeConfig{
+			"a": {Service: "svc", SpanName: "A"},
+			"b": {Service: "svc", SpanName: "B"},
+		},
+		Root: "a",
+		Edges: []EdgeConfig{
+			{From: "a", To: "b", Kind: EdgeKindInternal, Repeat: 1, DurationMs: 10, EventCount: 3, EventAttributeCount: 4},
+		},
+	}
+	def, err := cfg.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	spans, err := NewGenerator(def).GenerateBatch(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateBatch: %v", err)
+	}
+	var target *model.Span
+	for i := range spans {
+		if spans[i].ParentSpanID.IsValid() {
+			target = &spans[i]
+			break
+		}
+	}
+	if target == nil {
+		t.Fatalf("child span not found")
+	}
+	if len(target.Events) != 3 {
+		t.Fatalf("expected 3 synthetic events, got %d", len(target.Events))
+	}
+	for i, ev := range target.Events {
+		if len(ev.Attributes) != 4 {
+			t.Fatalf("event %d: expected 4 attributes, got %d", i, len(ev.Attributes))
+		}
+	}
+}
+
+func TestSyntheticEventCountDefaultsToOneAttribute(t *testing.T) {
+	cfg := Config{
+		Name: "event-default-attrs",
+		Seed: 1,
+		Services: map[string]ServiceConfig{
+			"svc": {Resource: map[string]TypedValue{"service.name": {Type: ValueTypeString, Value: "svc"}}},
+		},
+		Nodes: map[string]NodeConfig{
+			"a": {Service: "svc", SpanName: "A"},
+			"b": {Service: "svc", SpanName: "B"},
+		},
+		Root: "a",
+		Edges: []EdgeConfig{
+			// EventAttributeCount omitted → default 1
+			{From: "a", To: "b", Kind: EdgeKindInternal, Repeat: 1, DurationMs: 10, EventCount: 2},
+		},
+	}
+	def, err := cfg.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	spans, err := NewGenerator(def).GenerateBatch(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateBatch: %v", err)
+	}
+	var target *model.Span
+	for i := range spans {
+		if spans[i].ParentSpanID.IsValid() {
+			target = &spans[i]
+			break
+		}
+	}
+	if target == nil {
+		t.Fatalf("child span not found")
+	}
+	if len(target.Events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(target.Events))
+	}
+	for i, ev := range target.Events {
+		if len(ev.Attributes) != 1 {
+			t.Fatalf("event %d: expected 1 default attribute, got %d", i, len(ev.Attributes))
+		}
+	}
+}
+
+func TestSyntheticLinkCount(t *testing.T) {
+	cfg := Config{
+		Name: "link-count",
+		Seed: 1,
+		Services: map[string]ServiceConfig{
+			"svc": {Resource: map[string]TypedValue{"service.name": {Type: ValueTypeString, Value: "svc"}}},
+		},
+		Nodes: map[string]NodeConfig{
+			"a": {Service: "svc", SpanName: "A"},
+			"b": {Service: "svc", SpanName: "B"},
+		},
+		Root: "a",
+		Edges: []EdgeConfig{
+			{From: "a", To: "b", Kind: EdgeKindInternal, Repeat: 1, DurationMs: 10, LinkCount: 7},
+		},
+	}
+	def, err := cfg.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	spans, err := NewGenerator(def).GenerateBatch(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateBatch: %v", err)
+	}
+	var target *model.Span
+	for i := range spans {
+		if spans[i].ParentSpanID.IsValid() {
+			target = &spans[i]
+			break
+		}
+	}
+	if target == nil {
+		t.Fatalf("child span not found")
+	}
+	if len(target.Links) != 7 {
+		t.Fatalf("expected 7 synthetic links, got %d", len(target.Links))
+	}
+	for i, lnk := range target.Links {
+		if !lnk.SpanContext.IsValid() {
+			t.Fatalf("link %d has invalid span context", i)
+		}
+	}
+}
+
+func TestRandomSpanName(t *testing.T) {
+	cfg := Config{
+		Name: "random-span-name",
+		Seed: 1,
+		Services: map[string]ServiceConfig{
+			"svc": {Resource: map[string]TypedValue{"service.name": {Type: ValueTypeString, Value: "svc"}}},
+		},
+		Nodes: map[string]NodeConfig{
+			"a": {Service: "svc", SpanName: "op"},
+			"b": {Service: "svc", SpanName: "child", RandomSpanName: true},
+		},
+		Root: "a",
+		Edges: []EdgeConfig{
+			{From: "a", To: "b", Kind: EdgeKindInternal, Repeat: 3, DurationMs: 10},
+		},
+	}
+	def, err := cfg.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	spans, err := NewGenerator(def).GenerateBatch(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateBatch: %v", err)
+	}
+	names := make(map[string]struct{})
+	for _, s := range spans {
+		if s.Name != "op" {
+			names[s.Name] = struct{}{}
+		}
+	}
+	// Three repeats of the child node should produce three unique suffixed names.
+	if len(names) != 3 {
+		t.Fatalf("expected 3 unique random span names, got %d: %v", len(names), names)
+	}
+}
+
 func TestEstimateDurationPositive(t *testing.T) {
 	outgoing := map[string][]Edge{
 		"a": {{From: "a", To: "b", Repeat: 2, Duration: 10 * time.Millisecond}},

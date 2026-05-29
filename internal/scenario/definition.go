@@ -23,21 +23,26 @@ type Service struct {
 }
 
 type Node struct {
-	ID       string
-	Service  string
-	SpanName string
+	ID             string
+	Service        string
+	SpanName       string
+	RandomSpanName bool
 }
 
 type Edge struct {
-	From           string
-	To             string
-	Kind           EdgeKind
-	Repeat         int
-	Duration       time.Duration
-	NetworkLatency time.Duration
-	SpanAttributes map[string]attribute.Value
-	SpanEvents     []EventDef
-	SpanLinks      []LinkDef
+	From                string
+	To                  string
+	Kind                EdgeKind
+	Repeat              int
+	Duration            time.Duration
+	NetworkLatency      time.Duration
+	SpanAttributes      map[string]attribute.Value
+	SpanEvents          []EventDef
+	SpanLinks           []LinkDef
+	AttributeCount      int
+	EventCount          int
+	EventAttributeCount int
+	LinkCount           int
 }
 
 type Definition struct {
@@ -72,7 +77,7 @@ func (c Config) Build() (Definition, error) {
 	}
 
 	for id, node := range c.Nodes {
-		definition.Nodes[id] = Node{ID: id, Service: node.Service, SpanName: node.SpanName}
+		definition.Nodes[id] = Node{ID: id, Service: node.Service, SpanName: node.SpanName, RandomSpanName: node.RandomSpanName}
 	}
 
 	for i, edge := range c.Edges {
@@ -89,15 +94,19 @@ func (c Config) Build() (Definition, error) {
 			return Definition{}, err
 		}
 		definition.Edges = append(definition.Edges, Edge{
-			From:           edge.From,
-			To:             edge.To,
-			Kind:           edge.Kind,
-			Repeat:         edge.Repeat,
-			Duration:       time.Duration(edge.DurationMs) * time.Millisecond,
-			NetworkLatency: time.Duration(edge.NetworkLatencyMs) * time.Millisecond,
-			SpanAttributes: spanAttrs,
-			SpanEvents:     events,
-			SpanLinks:      links,
+			From:                edge.From,
+			To:                  edge.To,
+			Kind:                edge.Kind,
+			Repeat:              edge.Repeat,
+			Duration:            time.Duration(edge.DurationMs) * time.Millisecond,
+			NetworkLatency:      time.Duration(edge.NetworkLatencyMs) * time.Millisecond,
+			SpanAttributes:      spanAttrs,
+			SpanEvents:          events,
+			SpanLinks:           links,
+			AttributeCount:      edge.AttributeCount,
+			EventCount:          edge.EventCount,
+			EventAttributeCount: edge.EventAttributeCount,
+			LinkCount:           edge.LinkCount,
 		})
 	}
 

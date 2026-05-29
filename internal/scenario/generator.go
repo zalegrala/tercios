@@ -34,6 +34,7 @@ type Generator struct {
 	outgoing        map[string][]Edge
 	subtreeDuration map[string]time.Duration
 	counter         atomic.Uint64
+	spanNameSeq     atomic.Uint64
 }
 
 // NextChildren returns the outgoing edges of parentNodeID as ChildSpecs in
@@ -231,7 +232,7 @@ func (w *walker) popOne() []model.Span {
 		rootNode := w.g.definition.Nodes[w.g.definition.Root]
 		rootSpanID := w.trace.NodeSpans[w.g.definition.Root]
 		duration := emit.DueAt.Sub(w.trace.StartedAt)
-		rootSpan := w.g.newSpan(w.trace.TraceID, rootSpanID, oteltrace.SpanID{}, rootNode, oteltrace.SpanKindInternal, w.trace.StartedAt, duration, nil, nil, nil)
+		rootSpan := w.g.newSpan(w.trace.TraceID, rootSpanID, oteltrace.SpanID{}, rootNode, oteltrace.SpanKindInternal, w.trace.StartedAt, duration, nil, 0, nil, nil)
 		w.trace.InFlight--
 		return []model.Span{rootSpan}
 	}
@@ -240,6 +241,8 @@ func (w *walker) popOne() []model.Span {
 	if !emit.Resolved {
 		emit.Events = resolveEvents(emit.Child.Edge.SpanEvents)
 		emit.Links = resolveLinks(w.trace.TraceID, emit.Child.Edge.SpanLinks, w.trace.NodeSpans)
+		emit.Events = appendSyntheticEvents(emit.Events, emit.Child.Edge.EventCount, emit.Child.Edge.EventAttributeCount)
+		emit.Links = appendSyntheticLinks(emit.Links, emit.Child.Edge.LinkCount, w.trace.TraceID)
 		emit.Resolved = true
 	}
 
@@ -349,7 +352,7 @@ func (g *Generator) materializeChild(
 		return g.materializePair(child, traceID, parentSpanID, start, effDur, idState, events, links, oteltrace.SpanKindClient, oteltrace.SpanKindServer)
 	case EdgeKindInternal:
 		internalID := idState.next()
-		internalSpan := g.newSpan(traceID, internalID, parentSpanID, child.TargetNode, oteltrace.SpanKindInternal, start, effDur, edge.SpanAttributes, events, links)
+		internalSpan := g.newSpan(traceID, internalID, parentSpanID, child.TargetNode, oteltrace.SpanKindInternal, start, effDur, edge.SpanAttributes, edge.AttributeCount, events, links)
 		return materializedChild{
 			Spans:        []model.Span{internalSpan},
 			TargetSpanID: internalID,
@@ -381,13 +384,13 @@ func (g *Generator) materializePair(
 	edge := child.Edge
 
 	firstID := idState.next()
-	firstSpan := g.newSpan(traceID, firstID, parentSpanID, child.SourceNode, firstKind, start, effDur, edge.SpanAttributes, events, links)
+	firstSpan := g.newSpan(traceID, firstID, parentSpanID, child.SourceNode, firstKind, start, effDur, edge.SpanAttributes, edge.AttributeCount, events, links)
 	firstSpan.Name = edgeSpanName(child.SourceNode, child.TargetNode)
 
 	secondStart := start.Add(edge.NetworkLatency)
 	secondDur := effDur - 2*edge.NetworkLatency
 	secondID := idState.next()
-	secondSpan := g.newSpan(traceID, secondID, firstID, child.TargetNode, secondKind, secondStart, secondDur, edge.SpanAttributes, nil, nil)
+	secondSpan := g.newSpan(traceID, secondID, firstID, child.TargetNode, secondKind, secondStart, secondDur, edge.SpanAttributes, edge.AttributeCount, nil, nil)
 
 	return materializedChild{
 		Spans:        []model.Span{firstSpan, secondSpan},
@@ -404,6 +407,7 @@ func (g *Generator) newSpan(
 	start time.Time,
 	duration time.Duration,
 	edgeAttrs map[string]attribute.Value,
+	attributeCount int,
 	events []model.Event,
 	links []model.Link,
 ) model.Span {
@@ -416,10 +420,16 @@ func (g *Generator) newSpan(
 	for key, value := range edgeAttrs {
 		attrs[key] = value
 	}
+	for i := 0; i < attributeCount; i++ {
+		attrs[fmt.Sprintf("gen.attr.%06d", i)] = attribute.StringValue("v")
+	}
 
 	name := node.SpanName
 	if name == "" {
 		name = node.ID
+	}
+	if node.RandomSpanName {
+		name = fmt.Sprintf("%s-%d", name, g.spanNameSeq.Add(1))
 	}
 	if duration <= 0 {
 		duration = 1 * time.Millisecond
@@ -566,4 +576,47 @@ func splitmix64(x uint64) uint64 {
 	x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
 	x = (x ^ (x >> 27)) * 0x94d049bb133111eb
 	return x ^ (x >> 31)
+}
+
+// appendSyntheticEvents appends n generated SpanEvents to events.
+// Each event has m attributes (keys "gen.event.attr.000000", …).
+// eventAttributeCount <= 0 is treated as 1.
+func appendSyntheticEvents(events []model.Event, n, m int) []model.Event {
+	if n <= 0 {
+		return events
+	}
+	if m <= 0 {
+		m = 1
+	}
+	attrs := make([]attribute.KeyValue, m)
+	for j := 0; j < m; j++ {
+		attrs[j] = attribute.String(fmt.Sprintf("gen.event.attr.%06d", j), "v")
+	}
+	for i := 0; i < n; i++ {
+		events = append(events, model.Event{
+			Name:       fmt.Sprintf("gen.event.%06d", i),
+			Attributes: attrs,
+		})
+	}
+	return events
+}
+
+// appendSyntheticLinks appends n generated SpanLinks to links.
+// Each link references the same traceID with a unique synthetic spanID.
+func appendSyntheticLinks(links []model.Link, n int, traceID oteltrace.TraceID) []model.Link {
+	if n <= 0 {
+		return links
+	}
+	for i := 0; i < n; i++ {
+		var spanID oteltrace.SpanID
+		binary.BigEndian.PutUint64(spanID[:], uint64(i+1))
+		links = append(links, model.Link{
+			SpanContext: oteltrace.NewSpanContext(oteltrace.SpanContextConfig{
+				TraceID:    traceID,
+				SpanID:     spanID,
+				TraceFlags: oteltrace.FlagsSampled,
+			}),
+		})
+	}
+	return links
 }

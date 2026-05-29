@@ -1,0 +1,25 @@
+{
+  "name": "attack-high-cardinality",
+  "seed": 42,
+  "services": {
+    "frontend": {"resource": {"service.name": {"type": "string", "value": "frontend"}}},
+    "api":      {"resource": {"service.name": {"type": "string", "value": "api"}}},
+    "database": {"resource": {"service.name": {"type": "string", "value": "database"}}}
+  },
+  "nodes": {
+    "frontend": {"service": "frontend", "span_name": "request",  "random_span_name": true},
+    "api":      {"service": "api",      "span_name": "handler",  "random_span_name": true},
+    "database": {"service": "database", "span_name": "query",    "random_span_name": true}
+  },
+  "root": "frontend",
+  "edges": [
+    {
+      "from": "frontend", "to": "api",
+      "kind": "internal", "repeat": 1, "duration_ms": 50
+    },
+    {
+      "from": "api", "to": "database",
+      "kind": "internal", "repeat": 1, "duration_ms": 20
+    }
+  ]
+}

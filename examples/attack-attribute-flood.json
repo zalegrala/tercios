@@ -1,0 +1,27 @@
+{
+  "name": "attack-attribute-flood",
+  "seed": 42,
+  "services": {
+    "frontend": {"resource": {"service.name": {"type": "string", "value": "frontend"}}},
+    "api":      {"resource": {"service.name": {"type": "string", "value": "api"}}},
+    "database": {"resource": {"service.name": {"type": "string", "value": "database"}}}
+  },
+  "nodes": {
+    "frontend": {"service": "frontend", "span_name": "GET /api"},
+    "api":      {"service": "api",      "span_name": "handle_request"},
+    "database": {"service": "database", "span_name": "query"}
+  },
+  "root": "frontend",
+  "edges": [
+    {
+      "from": "frontend", "to": "api",
+      "kind": "internal", "repeat": 1, "duration_ms": 200,
+      "attribute_count": 25000
+    },
+    {
+      "from": "api", "to": "database",
+      "kind": "internal", "repeat": 1, "duration_ms": 100,
+      "attribute_count": 25000
+    }
+  ]
+}

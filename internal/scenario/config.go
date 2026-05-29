@@ -41,8 +41,9 @@ type ServiceConfig struct {
 }
 
 type NodeConfig struct {
-	Service  string `json:"service"`
-	SpanName string `json:"span_name"`
+	Service       string `json:"service"`
+	SpanName      string `json:"span_name"`
+	RandomSpanName bool  `json:"random_span_name,omitempty"`
 }
 
 type EventConfig struct {
@@ -72,6 +73,15 @@ type EdgeConfig struct {
 	SpanAttributes   map[string]TypedValue `json:"span_attributes,omitempty"`
 	SpanEvents       []EventConfig         `json:"span_events,omitempty"`
 	SpanLinks        []LinkConfig          `json:"span_links,omitempty"`
+	// AttributeCount: generate this many additional synthetic span attributes
+	// (keys "gen.attr.000001", …) beyond any explicit span_attributes.
+	AttributeCount int `json:"attribute_count,omitempty"`
+	// EventCount: generate this many synthetic SpanEvents per span.
+	EventCount int `json:"event_count,omitempty"`
+	// EventAttributeCount: attributes per synthetic event (default 1).
+	EventAttributeCount int `json:"event_attribute_count,omitempty"`
+	// LinkCount: generate this many synthetic SpanLinks per span.
+	LinkCount int `json:"link_count,omitempty"`
 }
 
 type Config struct {
@@ -181,6 +191,18 @@ func (c Config) Validate() error {
 		}
 		// 2*NetworkLatencyMs < DurationMs is checked in validateTimings.
 
+		if edge.AttributeCount < 0 {
+			return fmt.Errorf("edge %d: attribute_count must be >= 0", i)
+		}
+		if edge.EventCount < 0 {
+			return fmt.Errorf("edge %d: event_count must be >= 0", i)
+		}
+		if edge.EventAttributeCount < 0 {
+			return fmt.Errorf("edge %d: event_attribute_count must be >= 0", i)
+		}
+		if edge.LinkCount < 0 {
+			return fmt.Errorf("edge %d: link_count must be >= 0", i)
+		}
 		for key, value := range edge.SpanAttributes {
 			if err := value.Validate(fmt.Sprintf("edge %d span attribute %q", i, key)); err != nil {
 				return err
